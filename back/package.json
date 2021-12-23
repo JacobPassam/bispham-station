@@ -1,0 +1,32 @@
+{
+  "name": "bispham-station-back",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prestart": "npm run clean > /dev/null 2>&1; npx tsc",
+    "start": "node ./build/server.js",
+    "clean": "rm -r build/"
+  },
+  "author": "Jacob P",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.0",
+    "@types/express-session": "^1.17.4",
+    "typescript": "^4.5.2"
+  },
+  "dependencies": {
+    "@types/express": "^4.17.13",
+    "@types/mysql": "^2.15.19",
+    "@types/uid-safe": "^2.1.2",
+    "bcrypt": "^5.0.1",
+    "express": "^4.17.1",
+    "express-session": "^1.17.2",
+    "mysql2": "^2.3.3",
+    "path": "^0.12.7",
+    "uid-safe": "^2.1.5",
+    "underscore": "^1.13.2",
+    "util": "^0.10.4"
+  }
+}
