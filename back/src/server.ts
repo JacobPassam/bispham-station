@@ -11,9 +11,12 @@ import UserRoutes from "./userRoutes";
 import SessionStorage from './lib/sessionStorage';
 import PersistentStorage from "./lib/persistentStorage";
 
+import cookieParser from "cookie-parser";
+
 const PORT = 3000;
 
 const app = express();
+app.use(cookieParser());
 
 const db = new DBController(readCredsFromFile("../DB_CREDS"));
 db.connect();

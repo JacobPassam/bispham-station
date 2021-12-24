@@ -23,6 +23,12 @@ export default class UserRoutes {
         this.router.delete('/logout', this.logout)
     }
 
+    private setRememberMeCookie(res: Response, locator: string, token: string, expiry: number) {
+        res.cookie("x-remember", locator + " " + token, {
+            maxAge: expiry * 1000
+        });
+    }
+
     newAccount = (req: Request, res: Response) => {
         const body = req.body;
 
@@ -42,10 +48,7 @@ export default class UserRoutes {
 
                 if (body.rememberMe) {
                     this.persistentStorage.setToken(user.id).then((tk: any[]) => {
-                        res.cookie("x-remember-me", tk[0], {
-                            maxAge: tk[1]
-                        });
-
+                        this.setRememberMeCookie(res, tk[0], tk[1], tk[2])
                         res.json(user);
                     }).catch(err => res.json({ "error": err }));
                 } else {
@@ -66,13 +69,21 @@ export default class UserRoutes {
                 .catch(err => res.status(err[0]).json({ "error": err[1] }));
         }
 
-        const rememberMe = req.cookies["x-remember"];
+        let rememberMe = req.cookies["x-remember"];
         if (rememberMe) {
-            this.persistentStorage.validateToken(rememberMe).then(id => {
+            rememberMe = rememberMe.split(" ");
+            return this.persistentStorage.validateToken(rememberMe[0], rememberMe[1]).then((id: BigInt | null) => {
                 if (id == null) {
-                    // bad bad bad 
+                    res.clearCookie("x-remember");
+                    res.status(401).json({"error": "RememberMe is invalid or expired."});
                 } else {
-                    // wooooo do the sign in job
+                    this.userController.getUserById(id).then(user => {
+                        const session: UserSession = req.session;
+                        session.userId = user.id;
+
+                        return res.status(200).json(user);
+                    })
+
                 }
             })
         }
@@ -91,13 +102,10 @@ export default class UserRoutes {
                     .then((u: User) => {
                         const session: UserSession = req.session;
                         session.userId = u.id;
-
+                        
                         if (body.rememberMe && u.id) {
                             this.persistentStorage.setToken(u.id).then((tk: any[]) => {
-                                res.cookie("x-remember-me", tk[0], {
-                                    maxAge: tk[1]
-                                });
-        
+                                this.setRememberMeCookie(res, tk[0], tk[1], tk[2])
                                 res.status(200).json(u);
                             }).catch(err => res.json({ "error": err }));
                         } else {
@@ -105,7 +113,7 @@ export default class UserRoutes {
                         }
                     })
                     .catch(err => res.status(err[0]).json({ "error": err[1] }));
-            }).catch(err => res.status(err[0]).json({"error": err}));
+            }).catch(err => res.status(err[0]).json({ "error": err }));
     }
 
     hello = (req: Request, res: Response) => {
@@ -121,8 +129,9 @@ export default class UserRoutes {
         if (!session.userId) { res.sendStatus(401); }
         else {
             req.session.destroy(() => {
+                res.clearCookie("x-remember");
                 res.sendStatus(200);
-            })
+            });
         }
     }
 

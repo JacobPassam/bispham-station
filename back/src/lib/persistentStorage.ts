@@ -21,7 +21,7 @@ export default class PersistentStorage {
 
     private createTable() {
 
-        const sql = "CREATE TABLE IF NOT EXISTS `remember_tokens` (`Id` INT NOT NULL AUTO_INCREMENT, `Token` CHAR(60) NOT NULL, `UserId` INT NOT NULL, `Expires` INT NOT NULL, PRIMARY KEY (`Id`), FOREIGN KEY (`UserId`) REFERENCES users(`Id`));"
+        const sql = "CREATE TABLE IF NOT EXISTS `remember_tokens` (`Id` INT NOT NULL AUTO_INCREMENT, `Lookup` CHAR(40) NOT NULL, `Token` CHAR(60) NOT NULL, `UserId` INT NOT NULL, `Expires` INT NOT NULL, PRIMARY KEY (`Id`), FOREIGN KEY (`UserId`) REFERENCES users(`Id`));"
 
         this.con.query(sql, (err) => {
             if (err) {
@@ -47,27 +47,30 @@ export default class PersistentStorage {
         this.timer = setInterval(clear, 15 * 60 * 1000)
     }
 
-    validateToken(token: string) {
+    validateToken(lookup: string, token: string) {
 
-        return new Promise((resolve, reject) => {
-            bcrypt.hash(token, 10).then(hashed => {
-
-                const sql = "SELECT UserId, Expires FROM remember_tokens WHERE Token = ?;"
-                this.con.query(sql, [hashed], (err, res: RowDataPacket[]) => {
+        return new Promise<BigInt | null>((resolve, reject) => {
+            const sql = "SELECT UserId, Expires, Token FROM remember_tokens WHERE Lookup = ?;"
+            this.con.query(sql, [lookup], (err, res: RowDataPacket[]) => {
     
-                    if (err) return reject(err);
+                if (err) return reject(err);
 
-                    if (res.length == 0) {
-                        return resolve(null);
-                    } 
-                    
-                    if (res[0].Expires < Date.now() / 1000) {
+                if (res.length == 0) {
+                    return resolve(null);
+                }
+
+                if (res[0].Expires < Date.now() / 1000) {
+                    return resolve(null);
+                }
+
+                const hashed = res[0].Token;
+                bcrypt.compare(token, hashed).then(verified => {
+                    if (!verified) {
                         return resolve(null);
                     }
-
-                    return resolve(res[0].UserId);
-                })
     
+                    return resolve(res[0].UserId);
+                });
             })
         });
     }
@@ -75,15 +78,17 @@ export default class PersistentStorage {
     async setToken(userId: BigInt) {
         const plainToken = await this.generateToken();
         
+        const lookup = await this.generateToken();
+        
         const token = await bcrypt.hash(plainToken, 10);
         const expires = Date.now() / 1000 + this.EXPIRE_TIME;
 
-        const sql = "INSERT INTO remember_tokens (Token, UserId, Expires) VALUES (?, ?, ?);";
+        const sql = "INSERT INTO remember_tokens (Lookup, Token, UserId, Expires) VALUES (?, ?, ?, ?);";
 
         return await new Promise<any[]>((resolve, reject) => {
-            this.con.query(sql, [token, userId, expires], (err, res) => {
+            this.con.query(sql, [lookup, token, userId, expires], (err, res: any) => {
                 if (err) return reject(err);
-                else resolve([plainToken, this.EXPIRE_TIME]);
+                else resolve([lookup, plainToken, this.EXPIRE_TIME]);
             })
         })
     }
